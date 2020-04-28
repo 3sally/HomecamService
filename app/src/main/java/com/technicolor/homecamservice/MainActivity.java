@@ -8,6 +8,10 @@ import android.os.Bundle;
 import android.os.PowerManager;
 import android.util.Log;
 
+/***
+ * Add base foreground service (sticky service)
+ * start the service on boot completed
+ ***/
 public class MainActivity extends AppCompatActivity {
 
     private PowerManager.WakeLock wakeLock;
