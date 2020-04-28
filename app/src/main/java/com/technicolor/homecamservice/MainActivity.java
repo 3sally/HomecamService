@@ -34,16 +34,18 @@ public class MainActivity extends AppCompatActivity {
             Log.i("IsAcquire", "Acquire");
             wakeLock.acquire();
         }
-    }
-
-    public void startService(View v) {
         Intent serviceIntent = new Intent(this, ExampleService.class);
         ContextCompat.startForegroundService(this, serviceIntent);
     }
-    public void stopService(View v) {
-        Intent serviceIntent = new Intent(this, ExampleService.class);
-        stopService(serviceIntent);
-    }
+
+//    public void startService(View v) {
+//        Intent serviceIntent = new Intent(this, ExampleService.class);
+//        ContextCompat.startForegroundService(this, serviceIntent);
+//    }
+//    public void stopService(View v) {
+//        Intent serviceIntent = new Intent(this, ExampleService.class);
+//        stopService(serviceIntent);
+//    }
 
     @Override
     protected void onDestroy() {
