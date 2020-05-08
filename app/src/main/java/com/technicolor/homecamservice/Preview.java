@@ -12,6 +12,8 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
+import android.hardware.camera2.CaptureResult;
+import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -21,10 +23,12 @@ import android.view.Surface;
 import android.view.TextureView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.Semaphore;
 
 /**
@@ -38,20 +42,30 @@ public class Preview{
     private CameraDevice mCameraDevice;
     private CaptureRequest.Builder mPreviewBuilder;
     private CameraCaptureSession mPreviewSession;
-    private TextureView mTextureView;
+    //private TextureView mTextureView;
+    private SurfaceTexture mPreviewSurfaceTexture;
 
     Preview(Context context) {
-        mContext = context;
+        this(context, new SurfaceTexture(0));
     }
 
     Preview(Context context, TextureView textureView) {
-        mContext = context;
-        mTextureView = textureView;
+        this(context, textureView.getSurfaceTexture());
     }
+
+    Preview(Context context, SurfaceTexture surfaceTexture) {
+        mContext = context;
+        mPreviewSurfaceTexture = surfaceTexture;
+    }
+
     private String getCameraId(CameraManager cManager) {
         try {
             for (final String cameraId : cManager.getCameraIdList()) {
                 CameraCharacteristics characteristics = cManager.getCameraCharacteristics(cameraId);
+                List<CaptureResult.Key<?>> resultKeys = characteristics.getAvailableCaptureResultKeys();
+                for(CaptureResult.Key<?> key:resultKeys){
+                    Log.d(TAG, "key: " + key + ", name: " + key.getName());
+                }
                 return cameraId;
             }
         } catch (CameraAccessException e) {
@@ -67,7 +81,16 @@ public class Preview{
             String cameraId = getCameraId(manager);
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            mPreviewSize = map.getOutputSizes(SurfaceTexture.class)[0];
+            Size[] sizes = map.getOutputSizes(SurfaceTexture.class);
+            Size maxSize = null;
+            for(Size size:sizes){
+                Log.d(TAG, "available size: " + size.toString());
+                if(maxSize==null || maxSize.getHeight()*maxSize.getWidth() < size.getHeight()*size.getWidth()){
+                    maxSize = size;
+                }
+            }
+            Log.d(TAG, "max size: " + maxSize);
+            mPreviewSize = maxSize;
             Log.e(TAG, String.valueOf(manager));
 
             int permissionCamera = ContextCompat.checkSelfPermission(mContext, Manifest.permission.CAMERA);
@@ -82,34 +105,6 @@ public class Preview{
         }
         Log.e(TAG, "openCamera X");
     }
-//    private TextureView.SurfaceTextureListener mSurfaceTextureListener = new TextureView.SurfaceTextureListener(){
-//
-//        @Override
-//        public void onSurfaceTextureAvailable(SurfaceTexture surface,
-//                                              int width, int height) {
-//            // TODO Auto-generated method stub
-//            Log.e(TAG, "onSurfaceTextureAvailable, width="+width+",height="+height);
-//            openCamera();
-//        }
-//
-//        @Override
-//        public void onSurfaceTextureSizeChanged(SurfaceTexture surface,
-//                                                int width, int height) {
-//            // TODO Auto-generated method stub
-//            Log.e(TAG, "onSurfaceTextureSizeChanged");
-//        }
-//
-//        @Override
-//        public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-//            // TODO Auto-generated method stub
-//            return false;
-//        }
-//
-//        @Override
-//        public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-//            // TODO Auto-generated method stub
-//        }
-//    };
 
     private CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
 
@@ -118,12 +113,7 @@ public class Preview{
             // TODO Auto-generated method stub
             Log.e(TAG, "onOpened");
             mCameraDevice = camera;
-            if(mTextureView == null || camera == null){
-                Log.e(TAG,"Camera without TextureView");
-            } else{
-                startPreview();
-
-            }
+            startPreview();
         }
 
         @Override
@@ -141,19 +131,9 @@ public class Preview{
     };
 
     private void startPreview() {
-        // TODO Auto-generated method stub
-        if(null == mCameraDevice || !mTextureView.isAvailable() || null == mPreviewSize) {
-            Log.e(TAG, "startPreview fail, return");
-        }
 
-        SurfaceTexture texture = mTextureView.getSurfaceTexture();
-        if(null == texture) {
-            Log.e(TAG,"texture is null, return");
-            return;
-        }
-
-        texture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-        Surface surface = new Surface(texture);
+        mPreviewSurfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
+        Surface surface = new Surface(mPreviewSurfaceTexture);
 
         try {
             mPreviewBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
@@ -197,26 +177,24 @@ public class Preview{
         Handler backgroundHandler = new Handler(thread.getLooper());
 
         try {
-            mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), null, backgroundHandler);
+            mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), new CameraCaptureSession.CaptureCallback() {
+                @Override
+                public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
+                    super.onCaptureCompleted(session, request, result);
+                    Log.d(TAG, "onCaptureCompleted, faceDetectMode: " + result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE)
+                            + ", faces: " + result.get(CaptureResult.STATISTICS_FACES).length);
+
+                }
+            }, backgroundHandler);
         } catch (CameraAccessException e) {
             // TODO Auto-generated catch block
             e.printStackTrace();
         }
     }
 
-//    public void setSurfaceTextureListener()
-//    {
-//        mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
-//    }
-
-    public void onResume() {
-        Log.d(TAG, "onResume");
-//        setSurfaceTextureListener();
-    }
-
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
 
-    void onPause() {
+    void release() {
         // TODO Auto-generated method stub
         Log.d(TAG, "onPause");
         try {

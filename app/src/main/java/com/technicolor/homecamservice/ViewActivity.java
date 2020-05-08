@@ -1,9 +1,8 @@
 package com.technicolor.homecamservice;
 
-import android.content.Intent;
+import android.graphics.SurfaceTexture;
 import android.os.Bundle;
 import android.view.TextureView;
-import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -14,28 +13,43 @@ public class ViewActivity extends AppCompatActivity {
     protected void onCreate (Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_preview);
-        mCameraTextureView = (TextureView) findViewById(R.id.cameraTextureView);
-        preview = new Preview(getApplicationContext(), mCameraTextureView);
+        mCameraTextureView = findViewById(R.id.cameraTextureView);
+        mCameraTextureView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                preview = new Preview(getApplicationContext(), mCameraTextureView);
+                preview.openCamera();
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                return false;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+            }
+        });
+
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        preview.openCamera();
+
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-    }
-
-    public void CamView(View v) {
-        preview.openCamera();
-    }
-
-        public void Back(View v) {
-        Intent backIntent = new Intent(this, MainActivity.class);
-        startActivity(backIntent);
-
+    protected void onStop() {
+        super.onStop();
+        if(preview!=null) {
+            preview.release();
+        }
     }
 }
