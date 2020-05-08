@@ -1,15 +1,11 @@
 package com.technicolor.homecamservice;
 
-import android.app.Activity;
-import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.TextureView;
 import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
-
-import static com.technicolor.homecamservice.ExampleService.*;
 
 public class ViewActivity extends AppCompatActivity {
     private Preview preview;

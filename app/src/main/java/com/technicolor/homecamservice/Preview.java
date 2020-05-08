@@ -48,12 +48,11 @@ public class Preview{
         mContext = context;
         mTextureView = textureView;
     }
-    private String getBackFacingCameraId(CameraManager cManager) {
+    private String getCameraId(CameraManager cManager) {
         try {
             for (final String cameraId : cManager.getCameraIdList()) {
                 CameraCharacteristics characteristics = cManager.getCameraCharacteristics(cameraId);
-                int cOrientation = characteristics.get(CameraCharacteristics.LENS_FACING);
-                if (cOrientation == CameraCharacteristics.LENS_FACING_BACK) return cameraId;
+                return cameraId;
             }
         } catch (CameraAccessException e) {
             e.printStackTrace();
@@ -65,7 +64,7 @@ public class Preview{
         CameraManager manager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
         Log.e(TAG, "openCamera E");
         try {
-            String cameraId = getBackFacingCameraId(manager);
+            String cameraId = getCameraId(manager);
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             mPreviewSize = map.getOutputSizes(SurfaceTexture.class)[0];
@@ -73,7 +72,7 @@ public class Preview{
 
             int permissionCamera = ContextCompat.checkSelfPermission(mContext, Manifest.permission.CAMERA);
             if(permissionCamera == PackageManager.PERMISSION_DENIED) {
-                ActivityCompat.requestPermissions((Activity) mContext, new String[]{Manifest.permission.CAMERA},  ExampleService.REQUEST_CAMERA);
+                ActivityCompat.requestPermissions((Activity) mContext, new String[]{Manifest.permission.CAMERA},  HomeCamService.REQUEST_CAMERA);
             } else {
                 manager.openCamera(cameraId, mStateCallback, null);
             }

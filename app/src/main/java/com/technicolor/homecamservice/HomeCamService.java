@@ -31,7 +31,7 @@ import org.w3c.dom.Text;
 
 import static com.technicolor.homecamservice.App.*;
 
-public class ExampleService extends Service {
+public class HomeCamService extends Service {
     static final int REQUEST_CAMERA = 1;
     private static final String TAG = "CAMERA MANAGER";
     private Context mContext;
@@ -54,7 +54,6 @@ public class ExampleService extends Service {
                 .setContentTitle("Home Cam Service")
                 .setContentText("service...")
                 .setTicker("Camera On")
-                .setSmallIcon(R.drawable.ic_camera)
                 .setContentIntent(pendingIntent)
                 .build();
 
@@ -70,6 +69,7 @@ public class ExampleService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        preview.onPause();;
     }
 
     @Nullable
