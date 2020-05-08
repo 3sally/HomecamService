@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
@@ -15,6 +16,8 @@ import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
 import android.hardware.camera2.params.StreamConfigurationMap;
+import android.media.Image;
+import android.media.ImageReader;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
@@ -27,6 +30,7 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Semaphore;
@@ -45,6 +49,10 @@ public class Preview{
     //private TextureView mTextureView;
     private SurfaceTexture mPreviewSurfaceTexture;
 
+    HandlerThread jobThread;
+    Handler backgroundHandler;
+    ImageReader imageReader;
+
     Preview(Context context) {
         this(context, new SurfaceTexture(0));
     }
@@ -56,6 +64,28 @@ public class Preview{
     Preview(Context context, SurfaceTexture surfaceTexture) {
         mContext = context;
         mPreviewSurfaceTexture = surfaceTexture;
+
+        jobThread = new HandlerThread("CameraPreview");
+        jobThread.start();
+        backgroundHandler = new Handler(jobThread.getLooper());
+    }
+
+    void release() {
+        Log.d(TAG, "release");
+        jobThread.quit();
+
+        try {
+            mCameraOpenCloseLock.acquire();
+            if (null != mCameraDevice) {
+                mCameraDevice.close();
+                mCameraDevice = null;
+                Log.d(TAG, "CameraDevice Close");
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException("Interrupted while trying to lock camera closing.");
+        } finally {
+            mCameraOpenCloseLock.release();
+        }
     }
 
     private String getCameraId(CameraManager cManager) {
@@ -134,6 +164,18 @@ public class Preview{
 
         mPreviewSurfaceTexture.setDefaultBufferSize(mPreviewSize.getWidth(), mPreviewSize.getHeight());
         Surface surface = new Surface(mPreviewSurfaceTexture);
+        List<Surface> outputSurfaces = new ArrayList<>(1);
+        outputSurfaces.add(surface);
+        imageReader = ImageReader.newInstance(mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.JPEG, 20);
+        imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+            @Override
+            public void onImageAvailable(ImageReader reader) {
+                Image image = reader.acquireNextImage();
+                Log.d(TAG, "onImageAvailable: " + image.getWidth() + "x" + image.getHeight());
+                image.close();
+            }
+        }, backgroundHandler);
+        outputSurfaces.add(imageReader.getSurface());
 
         try {
             mPreviewBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
@@ -142,15 +184,14 @@ public class Preview{
             e.printStackTrace();
         }
         mPreviewBuilder.addTarget(surface);
-
         try {
-            mCameraDevice.createCaptureSession(Arrays.asList(surface), new CameraCaptureSession.StateCallback() {
-
+            mCameraDevice.createCaptureSession(outputSurfaces, new CameraCaptureSession.StateCallback() {
                 @Override
                 public void onConfigured(CameraCaptureSession session) {
                     // TODO Auto-generated method stub
                     mPreviewSession = session;
                     updatePreview();
+                    takePicture();
                 }
 
                 @Override
@@ -165,49 +206,40 @@ public class Preview{
         }
     }
 
+    private void takePicture(){
+        try {
+            CaptureRequest.Builder captureBuilder =
+                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+            captureBuilder.addTarget(imageReader.getSurface());
+            mPreviewSession.capture(captureBuilder.build(), null, backgroundHandler);
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+    }
+
     private void updatePreview() {
-        // TODO Auto-generated method stub
         if(null == mCameraDevice) {
             Log.e(TAG, "updatePreview error, return");
         }
-
         mPreviewBuilder.set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO);
-        HandlerThread thread = new HandlerThread("CameraPreview");
-        thread.start();
-        Handler backgroundHandler = new Handler(thread.getLooper());
+        mPreviewBuilder.addTarget(imageReader.getSurface());
 
         try {
             mPreviewSession.setRepeatingRequest(mPreviewBuilder.build(), new CameraCaptureSession.CaptureCallback() {
                 @Override
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
-                    Log.d(TAG, "onCaptureCompleted, faceDetectMode: " + result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE)
-                            + ", faces: " + result.get(CaptureResult.STATISTICS_FACES).length);
+                    //Log.d(TAG, "onCaptureCompleted, faceDetectMode: " + result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE)
+                     //       + ", faces: " + result.get(CaptureResult.STATISTICS_FACES).length);
 
                 }
             }, backgroundHandler);
         } catch (CameraAccessException e) {
-            // TODO Auto-generated catch block
             e.printStackTrace();
         }
     }
 
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
 
-    void release() {
-        // TODO Auto-generated method stub
-        Log.d(TAG, "onPause");
-        try {
-            mCameraOpenCloseLock.acquire();
-            if (null != mCameraDevice) {
-                mCameraDevice.close();
-                mCameraDevice = null;
-                Log.d(TAG, "CameraDevice Close");
-            }
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Interrupted while trying to lock camera closing.");
-        } finally {
-            mCameraOpenCloseLock.release();
-        }
-    }
+
 }
