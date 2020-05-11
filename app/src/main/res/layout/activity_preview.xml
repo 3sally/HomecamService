@@ -20,16 +20,6 @@
     <Button
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_below="@+id/view"
-        android:layout_alignParentStart="true"
-        android:layout_marginTop="-6dp"
-        android:layout_weight="1"
-        android:onClick="CamView"
-        android:text="Open" />
-
-    <Button
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:layout_below="@+id/cameraTextureView"
         android:layout_alignParentStart="true"
         android:layout_marginTop="-6dp"

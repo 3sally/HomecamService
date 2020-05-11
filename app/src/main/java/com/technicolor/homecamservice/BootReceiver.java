@@ -11,9 +11,11 @@ public class BootReceiver extends BroadcastReceiver {
         if (intent.ACTION_BOOT_COMPLETED.equals(intent.getAction())){
             Log.i("BootReceiver", "intent received");
 
-            Intent myIntent = new Intent(context, MainActivity.class);
-            myIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            context.startActivity(myIntent);
+//            Intent myIntent = new Intent(context, MainActivity.class);
+//            myIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            Intent serviceIntent = new Intent(context, HomeCamService.class);
+            context.startActivity(serviceIntent);
         }
     }
 }

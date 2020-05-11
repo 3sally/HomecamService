@@ -1,8 +1,10 @@
 package com.technicolor.homecamservice;
 
+import android.content.Intent;
 import android.graphics.SurfaceTexture;
 import android.os.Bundle;
 import android.view.TextureView;
+import android.view.View;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -51,5 +53,9 @@ public class ViewActivity extends AppCompatActivity {
         if(preview!=null) {
             preview.release();
         }
+    }
+    public void Back(View v) {
+        Intent viewIntent = new Intent(this, MainActivity.class);
+        startActivity(viewIntent);
     }
 }

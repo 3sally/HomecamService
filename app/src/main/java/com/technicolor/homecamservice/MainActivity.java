@@ -13,6 +13,7 @@ import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 
@@ -25,6 +26,7 @@ public class MainActivity extends AppCompatActivity {
     private Preview preview;
     private SensorManager sensorManager;
     private Sensor sensor;
+    private PowerManager pm;
 
     @SuppressLint("InvalidWakeLockTag")
     @Override
@@ -36,6 +38,9 @@ public class MainActivity extends AppCompatActivity {
         sensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
 
         preview =new Preview(getApplicationContext());
+        pm = (PowerManager)getSystemService(POWER_SERVICE);
+
+        preview =new Preview(getApplicationContext());
 
         if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
                 ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -45,10 +50,14 @@ public class MainActivity extends AppCompatActivity {
                             Manifest.permission.WRITE_EXTERNAL_STORAGE},
                     200);
         }
-        Intent serviceIntent = new Intent(this, HomeCamService.class);
+    }
+    public void Sleep(View v) throws InterruptedException {
+        PowerManagerHelper.goToSleep(pm, SystemClock.uptimeMillis());
+        Thread.sleep(10000);
+        PowerManagerHelper.wakeUp(pm, SystemClock.uptimeMillis());
     }
 
-    public void startService(View v) {
+    public void startService(View v) throws InterruptedException {
         Intent serviceIntent = new Intent(this, HomeCamService.class);
         ContextCompat.startForegroundService(this, serviceIntent);
     }

@@ -6,12 +6,21 @@ android {
 
     defaultConfig {
         applicationId "com.technicolor.homecamservice"
-        minSdkVersion 21
+        minSdkVersion 26
         targetSdkVersion 29
         versionCode 1
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        debug {
+            storeFile file("partner_debug.keystore")
+            storePassword "android"
+            keyAlias "android"
+            keyPassword "android"
+        }
     }
 
     buildTypes {
@@ -20,6 +29,7 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
 
 }
 
