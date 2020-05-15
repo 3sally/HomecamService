@@ -17,6 +17,8 @@ import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
 
+import com.google.firebase.FirebaseApp;
+
 /***
  * Add base foreground service (sticky service)
  * start the service on boot completed
@@ -24,8 +26,6 @@ import android.view.View;
 
 public class MainActivity extends AppCompatActivity {
     private Preview preview;
-    private SensorManager sensorManager;
-    private Sensor sensor;
     private PowerManager pm;
 
     @SuppressLint("InvalidWakeLockTag")
@@ -34,9 +34,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        sensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER);
-
+        FirebaseApp.initializeApp(this);
         preview =new Preview(getApplicationContext());
         pm = (PowerManager)getSystemService(POWER_SERVICE);
 
@@ -60,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
     public void startService(View v) throws InterruptedException {
         Intent serviceIntent = new Intent(this, HomeCamService.class);
         ContextCompat.startForegroundService(this, serviceIntent);
+
     }
     public void stopService(View v) {
         Intent serviceIntent = new Intent(this, HomeCamService.class);
