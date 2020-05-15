@@ -1,34 +1,34 @@
 {
   "project_info": {
-    "project_number": "456357818487",
-    "firebase_url": "https://mlkit-c3bd9.firebaseio.com",
-    "project_id": "mlkit-c3bd9",
-    "storage_bucket": "mlkit-c3bd9.appspot.com"
+    "project_number": "378895969531",
+    "firebase_url": "https://tchdemo-4e044.firebaseio.com",
+    "project_id": "tchdemo-4e044",
+    "storage_bucket": "tchdemo-4e044.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:456357818487:android:36bce830260f2080c09672",
+        "mobilesdk_app_id": "1:378895969531:android:4a5ed715b67bcfd118545e",
         "android_client_info": {
-          "package_name": "com.google.firebase.samples.apps.mlkit"
+          "package_name": "com.technicolor.homecamservice"
         }
       },
       "oauth_client": [
         {
-          "client_id": "456357818487-um9csaqrqlivcgs1gvebf0amq1lf4un2.apps.googleusercontent.com",
+          "client_id": "378895969531-r57efo11f9aa8ln0f4a59l2vo2f2dhuf.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyB2vwMlzRxQLhH2S0XIJ8BgAaKDTPJZREk"
+          "current_key": "AIzaSyCfmIfVfujKDh9uk6jdlKDfwN4VXIiiqlk"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "456357818487-um9csaqrqlivcgs1gvebf0amq1lf4un2.apps.googleusercontent.com",
+              "client_id": "378895969531-r57efo11f9aa8ln0f4a59l2vo2f2dhuf.apps.googleusercontent.com",
               "client_type": 3
             }
           ]

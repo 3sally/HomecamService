@@ -66,7 +66,10 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetector;
 import kotlin.coroutines.EmptyCoroutineContext;
 
@@ -95,6 +98,7 @@ public class Preview{
     private Bitmap myBitmap;
 
 
+    PowerManager powerManager;
 
     Preview(Context context) {
         this(context, new SurfaceTexture(0));
@@ -113,7 +117,28 @@ public class Preview{
         jobThread = new HandlerThread("CameraPreview");
         jobThread.start();
         backgroundHandler = new Handler(jobThread.getLooper());
+
+        powerManager = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+
+
+
+        // [START set_detector_options]
+        FirebaseVisionFaceDetectorOptions options =
+                new FirebaseVisionFaceDetectorOptions.Builder()
+                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.FAST)
+                        .setLandmarkMode(FirebaseVisionFaceDetectorOptions.NO_LANDMARKS)
+                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.NO_CLASSIFICATIONS)
+                        .setMinFaceSize(0.15f)
+                        .enableTracking()
+                        .build();
+        // [END set_detector_options]
+
+        // [START get_detector]
+        detector = FirebaseVision.getInstance()
+                .getVisionFaceDetector(options);
+        // [END get_detector]
     }
+
 
     void release() {
         Log.d(TAG, "release");
@@ -213,7 +238,7 @@ public class Preview{
         Surface surface = new Surface(mPreviewSurfaceTexture);
         List<Surface> outputSurfaces = new ArrayList<>(1);
         outputSurfaces.add(surface);
-        imageReader = ImageReader.newInstance(mPreviewSize.getWidth()/2, mPreviewSize.getHeight()/2, ImageFormat.JPEG, 1);
+        imageReader = ImageReader.newInstance(mPreviewSize.getWidth()/2, mPreviewSize.getHeight()/2, ImageFormat.JPEG, 10);
 
 
         imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
@@ -221,28 +246,48 @@ public class Preview{
             @Override
             public void onImageAvailable(ImageReader reader) {
                 Image image = reader.acquireNextImage();
+                if((System.currentTimeMillis()-lastFaceDetectRequest)>TimeUnit.SECONDS.toMillis(1) && myBitmap==null) {
+                    lastFaceDetectRequest = System.currentTimeMillis();
+                } else {
+                    image.close();
+                    return;
+                }
+
                 Log.d(TAG, "onImageAvailable: " + image.getWidth() + "x" + image.getHeight());
                 ByteBuffer buffer = image.getPlanes()[0].getBuffer();
                 byte[] bytes = new byte[buffer.capacity()];
                 buffer.get(bytes);
                 myBitmap = BitmapFactory.decodeByteArray(bytes,0,bytes.length);
+                try {
+                    detectFaces(myBitmap);
+                } catch (IOException e) {
 
-                path = Environment.getExternalStorageDirectory() + "/Pictures/";
+                }
+
+                //path = Environment.getExternalStorageDirectory() + "/Pictures/";
+                path = mContext.getFilesDir()  + "/Captured/";
+                File pathFile = new File(path);
+                if(!pathFile.exists()){
+                    pathFile.mkdir();
+                }
                 timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
                 File file = new File(path, timeStamp + ".jpg");
-                File pathFile = new File(path);
                 File[] files = pathFile.listFiles();
-                int fileLength = files.length;
-                Log.v("Files :", String.valueOf(fileLength));
-                del(files);
-                try {
-                    if (!file.exists() && Integer.parseInt(timeStamp.substring(9, 13)) % 10 == 0){
-                        save(bytes);
+                if(files!=null) {
+                    int fileLength = files.length;
+                    Log.v("Files :", String.valueOf(fileLength));
+                    del(files);
+                    try {
+                        //if (!file.exists() && Integer.parseInt(timeStamp.substring(9, 13)) % 10 == 0) {
+                            save(bytes);
 
-                    Log.e("ImageReader : ", "save Image : " + timeStamp);
+                            Log.e("ImageReader : ", "save Image : " + timeStamp);
+                        //}
+                    } catch (IOException e) {
+                        e.printStackTrace();
                     }
-                } catch (IOException e) {
                 }
+
                 image.close();
             }
 
@@ -290,7 +335,7 @@ public class Preview{
                     // TODO Auto-generated method stub
                     mPreviewSession = session;
                     updatePreview();
-                    takePicture();
+                    //takePicture();
 
                 }
 
@@ -330,13 +375,8 @@ public class Preview{
                 @Override
                 public void onCaptureCompleted(@NonNull CameraCaptureSession session, @NonNull CaptureRequest request, @NonNull TotalCaptureResult result) {
                     super.onCaptureCompleted(session, request, result);
-//                    Log.d(TAG, "onCaptureCompleted, faceDetectMode: " + result.get(CaptureResult.STATISTICS_FACE_DETECT_MODE)
-//                            + ", faces: " + result.get(CaptureResult.STATISTICS_FACES).length);
-                    try {
-                        detectFaces(myBitmap);
-                    } catch (IOException e) {
 
-                    }
+
                 }
             }, backgroundHandler);
         } catch (CameraAccessException e) {
@@ -345,48 +385,32 @@ public class Preview{
     }
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
 
-    private void detectFaces(Bitmap bitmap) throws IOException {
-        // [START set_detector_options]
-        FirebaseVisionFaceDetectorOptions options =
-                new FirebaseVisionFaceDetectorOptions.Builder()
-                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.ACCURATE)
-                        .setLandmarkMode(FirebaseVisionFaceDetectorOptions.ALL_LANDMARKS)
-                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.ALL_CLASSIFICATIONS)
-                        .setMinFaceSize(0.15f)
-                        .enableTracking()
-                        .build();
-        // [END set_detector_options]
+    OnSuccessListener successListener =new OnSuccessListener<List<FirebaseVisionFace>>() {
+        @Override
+        public void onSuccess(List<FirebaseVisionFace> faces) {
+            if(myBitmap !=null){
+                myBitmap.recycle();
+                myBitmap = null;
+            }
 
-        // [START get_detector]
-        FirebaseVisionFaceDetector detector = FirebaseVision.getInstance()
-                .getVisionFaceDetector(options);
-        // [END get_detector]
-
-        // [START run_detector]
-//        detector.detectInImage(FirebaseVisionImage.fromFilePath(mContext, Uri.fromFile(new File(path + timeStamp+ ".jpg"))))
-        detector.detectInImage(FirebaseVisionImage.fromBitmap(bitmap))
-            .addOnSuccessListener(
-                    new OnSuccessListener<List<FirebaseVisionFace>>() {
-                        @Override
-                        public void onSuccess(List<FirebaseVisionFace> faces) {
-                            // Task completed successfully
-                            Log.e("Face Detector", "Task completed successfully");
-                            // [START_EXCLUDE]
-                            // [START get_face_info]
+            // Task completed successfully
+            Log.e("Face Detector", "Task completed successfully");
+            // [START_EXCLUDE]
+            // [START get_face_info]
 //                            processFaceList(faces);
-                            for (FirebaseVisionFace face : faces) {
-                                int Id=face.getTrackingId();
-                                Rect bounds = face.getBoundingBox();
-                                float rotY = face.getHeadEulerAngleY();  // Head is rotated to the right rotY degrees
-                                float rotZ = face.getHeadEulerAngleZ();  // Head is tilted sideways rotZ degrees
+            for (FirebaseVisionFace face : faces) {
+                int Id=face.getTrackingId();
+                Rect bounds = face.getBoundingBox();
+                float rotY = face.getHeadEulerAngleY();  // Head is rotated to the right rotY degrees
+                float rotZ = face.getHeadEulerAngleZ();  // Head is tilted sideways rotZ degrees
 
-                                Log.e("test", ""+bounds+ ""+rotY+"" + rotZ);
-
-
+                Log.e("test", ""+bounds+ ""+rotY+"" + rotZ);
 
 
-                                // If landmark detection was enabled (mouth, ears, eyes, cheeks, and
-                                // nose available):
+
+
+                // If landmark detection was enabled (mouth, ears, eyes, cheeks, and
+                // nose available):
 //                                FirebaseVisionFaceLandmark leftEar = face.getLandmark(FirebaseVisionFaceLandmark.LEFT_EAR);
 //                                if (leftEar != null) {
 //                                    FirebaseVisionPoint leftEarPos = leftEar.getPosition();
@@ -400,31 +424,69 @@ public class Preview{
 //                                    float rightEyeOpenProb = face.getRightEyeOpenProbability();
 //                                }
 
-                                // If face tracking was enabled:
+                // If face tracking was enabled:
 //                                if (face.getTrackingId() != FirebaseVisionFace.INVALID_ID) {
 //                                    int id = face.getTrackingId();
 //                                }
 
-                            }
+            }
 
-                            // [END get_face_info]
-                            // [END_EXCLUDE]
-                        }
-                    })
-            .addOnFailureListener(
-                    new OnFailureListener() {
-                        @Override
-                        public void onFailure(@NonNull Exception e) {
-                            // Task failed with an exception
-                            Log.e("Face Detector", "Task failed");
+            onFaceDetected(faces!=null && faces.size()>0);
 
-                            // ...
-                        }
-                    });
+            // [END get_face_info]
+            // [END_EXCLUDE]
+        }
+    };
+    OnFailureListener failureListener = new OnFailureListener() {
+        @Override
+        public void onFailure(@NonNull Exception e) {
+            // Task failed with an exception
+            Log.e("Face Detector", "Task failed");
+            // ...
+            if(myBitmap !=null){
+                myBitmap.recycle();
+                myBitmap = null;
+            }
+        }
+    };
+    private void detectFaces(Bitmap bitmap) throws IOException {
+
+
+
+        // [START run_detector]
+//        detector.detectInImage(FirebaseVisionImage.fromFilePath(mContext, Uri.fromFile(new File(path + timeStamp+ ".jpg"))))
+
+        detector.detectInImage(FirebaseVisionImage.fromBitmap(bitmap))
+            .addOnSuccessListener(successListener)
+            .addOnFailureListener(failureListener);
 
 // [END run_detector]
     }
 
 
 
+    long lastFaceDetectRequest = 0;
+    Long lastChanged = null;
+    Boolean lastFaceDetected = null;
+    private void onFaceDetected(boolean detected){
+        Log.d("power", "face detected: " + detected);
+        if(!Objects.equals(detected, lastFaceDetected)){
+            Log.d("power", "diff");
+            lastChanged = System.currentTimeMillis();
+            lastFaceDetected = detected;
+        } else {
+            Log.d("power", "same");
+        }
+        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(1)){
+            Log.d("power", "trigger..");
+
+            if(lastFaceDetected && !powerManager.isInteractive()){
+                Log.d("power", "wake up");
+                PowerManagerHelper.wakeUp(powerManager, SystemClock.uptimeMillis());
+            } else if(!lastFaceDetected && powerManager.isInteractive()){
+                Log.d("power", "goto sleep");
+                PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
+            }
+        }
+    }
 }

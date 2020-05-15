@@ -5,7 +5,7 @@ android {
     buildToolsVersion "29.0.3"
 
     defaultConfig {
-        applicationId "com.google.firebase.samples.apps.mlkit"
+        applicationId "com.technicolor.homecamservice"
         minSdkVersion 21
         targetSdkVersion 29
         versionCode 1
