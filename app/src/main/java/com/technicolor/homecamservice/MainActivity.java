@@ -1,21 +1,17 @@
 package com.technicolor.homecamservice;
 
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.hardware.Sensor;
-import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.os.SystemClock;
-import android.util.Log;
 import android.view.View;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.firebase.FirebaseApp;
 
@@ -49,7 +45,8 @@ public class MainActivity extends AppCompatActivity {
                     200);
         }
     }
-    public void Sleep(View v) throws InterruptedException {
+
+    public void sleep(View v) throws InterruptedException {
         PowerManagerHelper.goToSleep(pm, SystemClock.uptimeMillis());
         Thread.sleep(10000);
         PowerManagerHelper.wakeUp(pm, SystemClock.uptimeMillis());

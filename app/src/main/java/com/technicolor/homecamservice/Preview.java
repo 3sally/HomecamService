@@ -433,6 +433,7 @@ public class Preview{
 
             onFaceDetected(faces!=null && faces.size()>0);
 
+
             // [END get_face_info]
             // [END_EXCLUDE]
         }
@@ -463,12 +464,11 @@ public class Preview{
 // [END run_detector]
     }
 
-
-
     long lastFaceDetectRequest = 0;
     Long lastChanged = null;
     Boolean lastFaceDetected = null;
     private void onFaceDetected(boolean detected){
+
         Log.d("power", "face detected: " + detected);
         if(!Objects.equals(detected, lastFaceDetected)){
             Log.d("power", "diff");
@@ -485,7 +485,7 @@ public class Preview{
                 PowerManagerHelper.wakeUp(powerManager, SystemClock.uptimeMillis());
             } else if(!lastFaceDetected && powerManager.isInteractive()){
                 Log.d("power", "goto sleep");
-                PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
+                //PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
             }
         }
     }

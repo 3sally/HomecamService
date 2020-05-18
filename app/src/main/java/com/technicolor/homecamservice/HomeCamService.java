@@ -5,25 +5,76 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.PixelFormat;
+import android.graphics.SurfaceTexture;
 import android.os.IBinder;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.TextureView;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.WindowManager;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
-import static com.technicolor.homecamservice.App.*;
+import static com.technicolor.homecamservice.App.CHANNEL_ID;
 
 public class HomeCamService extends Service {
     static final int REQUEST_CAMERA = 1;
     private static final String TAG = "CAMERA MANAGER";
     private Context mContext;
     private Preview preview;
-
+    private TextureView texturePreview;
     @Override
     public void onCreate() {
         super.onCreate();
-        preview = new Preview(getApplicationContext());
+        showOverlayView();
     }
+    private View overlayView;
+    private void showOverlayView(){
+        LayoutInflater inflate = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
 
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        |WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                        |WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                PixelFormat.TRANSLUCENT);
+
+        params.gravity = Gravity.LEFT | Gravity.TOP;
+        overlayView = inflate.inflate(R.layout.overlay_homecamservice, null);
+
+        texturePreview = overlayView.findViewById(R.id.preview);
+        texturePreview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                preview = new Preview(getApplicationContext(), texturePreview);
+                preview.openCamera();
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                return false;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+            }
+        });
+
+        wm.addView(overlayView, params);
+    }
+    
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Intent notificationIntent = new Intent(this, MainActivity.class);
@@ -36,7 +87,7 @@ public class HomeCamService extends Service {
                 .setContentIntent(pendingIntent)
                 .build();
 
-        preview.openCamera();
+
         startForeground(1, notification);
 
         //do heavy work on a background thread
