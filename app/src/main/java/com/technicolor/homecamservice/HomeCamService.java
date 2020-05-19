@@ -7,13 +7,18 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
+import android.graphics.PorterDuff;
+import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.os.Handler;
 import android.os.IBinder;
 import android.view.Gravity;
 import android.view.LayoutInflater;
+import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,13 +29,16 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+import com.google.firebase.ml.vision.face.FirebaseVisionFace;
+
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 
 import static com.technicolor.homecamservice.App.CHANNEL_ID;
 
-public class HomeCamService extends Service implements Preview.OnImageCapturedListener {
+public class HomeCamService extends Service implements Preview.OnEventListener {
     static final int REQUEST_CAMERA = 1;
     private static final String TAG = "CAMERA MANAGER";
     private Context mContext;
@@ -38,6 +46,8 @@ public class HomeCamService extends Service implements Preview.OnImageCapturedLi
     private TextureView texturePreview;
     private ImageView imageCaptured;
     private TextView textDatetime;
+    private SurfaceView surfaceOSD;
+
     private Handler mainHandler;
     private View overlayView;
 
@@ -95,6 +105,9 @@ public class HomeCamService extends Service implements Preview.OnImageCapturedLi
 
         textDatetime = overlayView.findViewById(R.id.textDatetime);
 
+        surfaceOSD = overlayView.findViewById(R.id.surfaceOSD);
+        surfaceOSD.getHolder().setFormat(PixelFormat.TRANSPARENT);
+        surfaceOSD.setZOrderOnTop(true);
         wm.addView(overlayView, params);
     }
     
@@ -140,6 +153,7 @@ public class HomeCamService extends Service implements Preview.OnImageCapturedLi
             @Override
             public void run() {
                 clearCapturedImage();
+                surfaceOSD.setVisibility(View.INVISIBLE);
                 imageCaptured.setVisibility(View.VISIBLE);
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inPreferredConfig = Bitmap.Config.ARGB_8888;
@@ -153,11 +167,38 @@ public class HomeCamService extends Service implements Preview.OnImageCapturedLi
             @Override
             public void run() {
                 clearCapturedImage();
+                surfaceOSD.setVisibility(View.VISIBLE);
                 imageCaptured.setVisibility(View.GONE);
                 updateTime();
             }
         }, 5000);
     }
+
+
+
+    @Override
+    public void onFaceDetected(List<FirebaseVisionFace> faces){
+        if(faces!=null && faces.size()>0){
+            Canvas canvas = surfaceOSD.getHolder().lockCanvas();
+            if(canvas==null) return;
+            canvas.drawColor(0, PorterDuff.Mode.CLEAR);
+            for(FirebaseVisionFace face:faces){
+                Paint paint = new Paint();
+                paint.setColor(Color.DKGRAY);
+                paint.setStrokeWidth(1);
+                paint.setStyle(Paint.Style.STROKE);
+                canvas.drawRect(face.getBoundingBox(), paint);
+            }
+
+            surfaceOSD.getHolder().unlockCanvasAndPost(canvas);
+        } else {
+            Canvas canvas = surfaceOSD.getHolder().lockCanvas();
+            if(canvas==null) return;
+            canvas.drawColor(0, PorterDuff.Mode.CLEAR);
+            surfaceOSD.getHolder().unlockCanvasAndPost(canvas);
+        }
+    }
+
     public void clearCapturedImage(){
         if(bitmapCaptured!=null){
             bitmapCaptured.recycle();

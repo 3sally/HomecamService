@@ -113,7 +113,7 @@ public class Preview{
         // [START set_detector_options]
         FirebaseVisionFaceDetectorOptions options =
                 new FirebaseVisionFaceDetectorOptions.Builder()
-                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.FAST)
+                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.ACCURATE)
                         .setLandmarkMode(FirebaseVisionFaceDetectorOptions.NO_LANDMARKS)
                         .setClassificationMode(FirebaseVisionFaceDetectorOptions.NO_CLASSIFICATIONS)
                         .setMinFaceSize(0.15f)
@@ -367,6 +367,9 @@ public class Preview{
                 myBitmap.recycle();
                 myBitmap = null;
             }
+            if(listener!=null){
+                listener.onFaceDetected(faces);
+            }
 
             // Task completed successfully
             Log.e("Face Detector", "Task completed successfully");
@@ -393,6 +396,9 @@ public class Preview{
         public void onFailure(@NonNull Exception e) {
             // Task failed with an exception
             Log.e("Face Detector", "Task failed");
+            if(listener!=null){
+                listener.onFaceDetected(null);
+            }
             // ...
             if(myBitmap !=null){
                 myBitmap.recycle();
@@ -419,39 +425,46 @@ public class Preview{
     private long lastFaceDetectRequest = 0;
     private Long lastChanged = null;
     private Boolean lastFaceDetected = null;
+
+    private static final int MAX_FILTER_COUNT = 10;
+    private int filterCount = 0;
+
     @RequiresApi(api = Build.VERSION_CODES.O)
     private void onFaceDetected(boolean detected) {
-        Log.d("power", "face detected: " + detected);
+        Log.d("face", "onFaceDetected: " + detected);
         if(!Objects.equals(detected, lastFaceDetected)){
-            Log.d("power", "diff");
-            lastChanged = System.currentTimeMillis();
-            lastFaceDetected = detected;
-            if(detected){
-                capture();
+            filterCount++;
+            if(filterCount>MAX_FILTER_COUNT){
+                Log.d("face", "face detected: " + detected);
+                lastChanged = System.currentTimeMillis();
+                lastFaceDetected = detected;
+                if(detected){
+                    capture();
+                }
+                filterCount = 0;
             }
         } else {
             Log.d("power", "same");
+            filterCount = 0;
         }
-        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(0)) {
-            Log.d("power", "trigger..");
-
-            if (lastFaceDetected && !powerManager.isInteractive()) {
+        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(1)
+            && lastFaceDetected && !powerManager.isInteractive()) {
                 Log.d("power", "wake up");
                 PowerManagerHelper.wakeUp(powerManager, SystemClock.uptimeMillis());
+        }
 
-
-            }
-            else if(!lastFaceDetected && powerManager.isInteractive()) {
+        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.MINUTES.toMillis(1)
+            && !lastFaceDetected && powerManager.isInteractive()) {
                 Log.d("power", "goto sleep");
-                //PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
-            }
+                PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
         }
     }
-    public interface OnImageCapturedListener{
+    public interface OnEventListener {
         void onImageCaptured(File file);
+        void onFaceDetected(List<FirebaseVisionFace> faces);
     }
-    OnImageCapturedListener listener;
-    public void setOnImageCapturedListener(OnImageCapturedListener listener){
+    OnEventListener listener;
+    public void setOnImageCapturedListener(OnEventListener listener){
         this.listener = listener;
     }
 
