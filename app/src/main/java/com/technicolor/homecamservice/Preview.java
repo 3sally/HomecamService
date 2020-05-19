@@ -52,7 +52,8 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Calendar;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -234,7 +235,9 @@ public class Preview{
             @Override
             public void onImageAvailable(ImageReader reader) {
                 Image image = reader.acquireNextImage();
-                if((System.currentTimeMillis()-lastFaceDetectRequest)>TimeUnit.SECONDS.toMillis(1) && myBitmap==null) {
+
+                if(!detectingInProgress) {
+                //if((System.currentTimeMillis()-lastFaceDetectRequest)>TimeUnit.SECONDS.toMillis(1) && myBitmap==null) {
                     lastFaceDetectRequest = System.currentTimeMillis();
                 } else {
                     image.close();
@@ -244,7 +247,9 @@ public class Preview{
                 ByteBuffer buffer = image.getPlanes()[0].getBuffer();
                 bytes = new byte[buffer.capacity()];
                 buffer.get(bytes);
-                myBitmap = BitmapFactory.decodeByteArray(bytes,0,bytes.length);
+                Bitmap bitmap = BitmapFactory.decodeByteArray(bytes,0,bytes.length);
+
+                myBitmap = Bitmap.createScaledBitmap(bitmap,  mPreviewSize.getWidth()/4, mPreviewSize.getHeight()/4, false);
                 try {
                     detectFaces(myBitmap);
                 } catch (IOException e) {
@@ -308,7 +313,7 @@ public class Preview{
 //            count ++;
 //        }
         save(SaveBytes);
-        del(files);
+        deleteOldCapturedImages();
 
     }
     private void save(byte[] SaveBytes) throws IOException {
@@ -317,17 +322,17 @@ public class Preview{
         }
     }
 
-    private void del(File[] files) {
-        long todayMil = System.currentTimeMillis();
-        Calendar fileCal = Calendar.getInstance();
-        Date fileDate = null;
-        for (File value : files) {
-            fileDate = new Date(value.lastModified());
-            fileCal.setTime(fileDate);
-            long diffMil = todayMil - fileCal.getTimeInMillis();
-            int diffTime = (int) (diffMil / (24 * 60 * 60 * 1000));
-            if (diffTime >= 1 && value.exists()) {
-                value.delete();
+    private static final int MAX_CAPTURE_IMAGE = 30;
+    private void deleteOldCapturedImages() {
+        File pathFile = new File(path);
+        File[] files = pathFile.listFiles();
+        if(files!=null && files.length>MAX_CAPTURE_IMAGE){
+            List<File> fileList = new ArrayList<>(Arrays.asList(files));
+            Collections.sort(fileList);
+
+            for(int i=0; i<MAX_CAPTURE_IMAGE; i++){
+                Log.d(TAG, "delete:" + fileList.get(i).getName());
+                fileList.get(i).delete();
             }
         }
     }
@@ -380,6 +385,7 @@ public class Preview{
             onFaceDetected(faces!=null && faces.size()>0);
             // [END get_face_info]
             // [END_EXCLUDE]
+            detectingInProgress = false;
         }
     };
     private OnFailureListener failureListener = new OnFailureListener() {
@@ -392,15 +398,15 @@ public class Preview{
                 myBitmap.recycle();
                 myBitmap = null;
             }
+            detectingInProgress = false;
         }
     };
+    private boolean detectingInProgress = false;
     private void detectFaces(Bitmap bitmap) throws IOException {
-
-
-
         // [START run_detector]
 //        detector.detectInImage(FirebaseVisionImage.fromFilePath(mContext, Uri.fromFile(new File(path + timeStamp+ ".jpg"))))
-
+        detectingInProgress = true;
+        Log.d(TAG, "request detect face");
         detector.detectInImage(FirebaseVisionImage.fromBitmap(bitmap))
             .addOnSuccessListener(successListener)
             .addOnFailureListener(failureListener);
@@ -420,7 +426,7 @@ public class Preview{
             Log.d("power", "diff");
             lastChanged = System.currentTimeMillis();
             lastFaceDetected = detected;
-            if(lastFaceDetected){
+            if(detected){
                 capture();
             }
         } else {

@@ -39,13 +39,21 @@
 
         <ImageView
             android:id="@+id/imageCaptured"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
+            android:layout_width="240dp"
+            android:layout_height="135dp"
             android:src="@drawable/ic_videocam_black_24dp"
             app:layout_constraintBottom_toBottomOf="@+id/preview"
             app:layout_constraintEnd_toEndOf="@+id/preview"
             app:layout_constraintStart_toStartOf="@+id/preview"
             app:layout_constraintTop_toTopOf="@+id/preview" />
+
+        <ImageView
+            android:layout_height="18dp"
+            android:layout_width="18dp"
+            android:layout_marginBottom="1dp"
+            android:src="@drawable/ic_videocam_black_24dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="@+id/preview" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
 
