@@ -10,7 +10,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.hardware.Camera;
 import android.hardware.camera2.CameraAccessException;
 import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
@@ -20,12 +19,10 @@ import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.CaptureResult;
 import android.hardware.camera2.TotalCaptureResult;
-import android.hardware.camera2.params.RecommendedStreamConfigurationMap;
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
-import android.net.Uri;
-import android.os.Environment;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.PowerManager;
@@ -34,44 +31,33 @@ import android.util.Log;
 import android.util.Size;
 import android.view.Surface;
 import android.view.TextureView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
 import com.google.firebase.ml.vision.FirebaseVision;
 import com.google.firebase.ml.vision.common.FirebaseVisionImage;
-import com.google.firebase.ml.vision.common.FirebaseVisionPoint;
 import com.google.firebase.ml.vision.face.FirebaseVisionFace;
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetector;
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions;
-import com.google.firebase.ml.vision.face.FirebaseVisionFaceLandmark;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.net.HttpCookie;
 import java.nio.ByteBuffer;
-import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-
-import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetector;
-import kotlin.coroutines.EmptyCoroutineContext;
 
 /**
  * Open Camera on Service
@@ -86,6 +72,7 @@ public class Preview{
     private CameraCaptureSession mPreviewSession;
     private TextureView mTextureView;
     private SurfaceTexture mPreviewSurfaceTexture;
+    private TextureView mPreview;
     private CameraCharacteristics characteristics;
     private HandlerThread jobThread;
     private  Handler backgroundHandler;
@@ -94,8 +81,8 @@ public class Preview{
     private String timeStamp;
     private String path;
     FirebaseVisionFaceDetector detector;
-    private PowerManager pm;
     private Bitmap myBitmap;
+    byte[] bytes;
 
 
     PowerManager powerManager;
@@ -181,6 +168,7 @@ public class Preview{
         Log.e(TAG, "openCamera E");
         try {
             String cameraId = getCameraId(manager);
+            Log.e(TAG, "found: " + cameraId);
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             Size[] sizes = map.getOutputSizes(ImageFormat.JPEG);
@@ -238,7 +226,7 @@ public class Preview{
         Surface surface = new Surface(mPreviewSurfaceTexture);
         List<Surface> outputSurfaces = new ArrayList<>(1);
         outputSurfaces.add(surface);
-        imageReader = ImageReader.newInstance(mPreviewSize.getWidth()/2, mPreviewSize.getHeight()/2, ImageFormat.JPEG, 10);
+        imageReader = ImageReader.newInstance(mPreviewSize.getWidth(), mPreviewSize.getHeight(), ImageFormat.JPEG, 10);
 
 
         imageReader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
@@ -252,10 +240,9 @@ public class Preview{
                     image.close();
                     return;
                 }
-
                 Log.d(TAG, "onImageAvailable: " + image.getWidth() + "x" + image.getHeight());
                 ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-                byte[] bytes = new byte[buffer.capacity()];
+                bytes = new byte[buffer.capacity()];
                 buffer.get(bytes);
                 myBitmap = BitmapFactory.decodeByteArray(bytes,0,bytes.length);
                 try {
@@ -263,60 +250,7 @@ public class Preview{
                 } catch (IOException e) {
 
                 }
-
-                //path = Environment.getExternalStorageDirectory() + "/Pictures/";
-                path = mContext.getFilesDir()  + "/Captured/";
-                File pathFile = new File(path);
-                if(!pathFile.exists()){
-                    pathFile.mkdir();
-                }
-                timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-                File file = new File(path, timeStamp + ".jpg");
-                File[] files = pathFile.listFiles();
-                if(files!=null) {
-                    int fileLength = files.length;
-                    Log.v("Files :", String.valueOf(fileLength));
-                    del(files);
-                    try {
-                        //if (!file.exists() && Integer.parseInt(timeStamp.substring(9, 13)) % 10 == 0) {
-                            save(bytes);
-
-                            Log.e("ImageReader : ", "save Image : " + timeStamp);
-                        //}
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
                 image.close();
-            }
-
-            private void save(byte[] bytes) throws IOException {
-                OutputStream output = null;
-                try {
-                    output = new FileOutputStream(path + timeStamp + ".jpg");
-                    output.write(bytes);
-                } finally {
-                    if (null != output) {
-                        output.close();
-                    }
-                }
-            }
-
-            private void del(File[] files) {
-                long todayMil = System.currentTimeMillis();
-                Calendar fileCal = Calendar.getInstance();
-                Date fileDate = null;
-                for (int j = 0; j < files.length; j++) {
-                    fileDate = new Date(files[j].lastModified());
-                    fileCal.setTime(fileDate);
-                    long diffMil = todayMil - fileCal.getTimeInMillis();
-                    int diffTime = (int) (diffMil / (6 * 60 * 60 * 1000));
-                    if (diffTime >= 1 && files[j].exists()) {
-                        Log.e("Files : ", "DelFile" + timeStamp + ".jpg");
-                        files[j].delete();
-                    }
-                }
             }
         }, backgroundHandler);
         outputSurfaces.add(imageReader.getSurface());
@@ -342,7 +276,6 @@ public class Preview{
                 @Override
                 public void onConfigureFailed(CameraCaptureSession session) {
                     // TODO Auto-generated method stub
-                    Toast.makeText(mContext, "onConfigureFailed", Toast.LENGTH_LONG).show();
                 }
                 //null -> backgoundHandler
             }, backgroundHandler);
@@ -351,15 +284,51 @@ public class Preview{
             e.printStackTrace();
         }
     }
+    private File capturedFile;
+    private String fileName;
+    @SuppressLint("SimpleDateFormat")
+    private void initSave(byte[] SaveBytes) throws IOException {
+        path = mContext.getFilesDir() + "/Captured/";
 
-    private void takePicture(){
-        try {
-            CaptureRequest.Builder captureBuilder =
-                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
-            captureBuilder.addTarget(imageReader.getSurface());
-            mPreviewSession.capture(captureBuilder.build(), null, backgroundHandler);
-        } catch (Exception e){
-            e.printStackTrace();
+        Log.d("DIR", "" + path);
+        File pathFile = new File(path);
+        if (!pathFile.exists()) {
+            pathFile.mkdir();
+        }
+//        int count = 0;
+        timeStamp = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss").format(new Date());
+        fileName = path +""+timeStamp;
+        capturedFile = new File(fileName);
+        File[] files = pathFile.listFiles();
+        if (files != null) {
+            int fileLength = files.length;
+            Log.v("Files :", String.valueOf(fileLength));
+        }
+//        if(file.exists()){
+//            count ++;
+//        }
+        save(SaveBytes);
+        del(files);
+
+    }
+    private void save(byte[] SaveBytes) throws IOException {
+        try (OutputStream output = new FileOutputStream(capturedFile)) {
+            output.write(SaveBytes);
+        }
+    }
+
+    private void del(File[] files) {
+        long todayMil = System.currentTimeMillis();
+        Calendar fileCal = Calendar.getInstance();
+        Date fileDate = null;
+        for (File value : files) {
+            fileDate = new Date(value.lastModified());
+            fileCal.setTime(fileDate);
+            long diffMil = todayMil - fileCal.getTimeInMillis();
+            int diffTime = (int) (diffMil / (24 * 60 * 60 * 1000));
+            if (diffTime >= 1 && value.exists()) {
+                value.delete();
+            }
         }
     }
 
@@ -385,7 +354,8 @@ public class Preview{
     }
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
 
-    OnSuccessListener successListener =new OnSuccessListener<List<FirebaseVisionFace>>() {
+    private OnSuccessListener successListener =new OnSuccessListener<List<FirebaseVisionFace>>() {
+        @RequiresApi(api = Build.VERSION_CODES.O)
         @Override
         public void onSuccess(List<FirebaseVisionFace> faces) {
             if(myBitmap !=null){
@@ -405,40 +375,14 @@ public class Preview{
                 float rotZ = face.getHeadEulerAngleZ();  // Head is tilted sideways rotZ degrees
 
                 Log.e("test", ""+bounds+ ""+rotY+"" + rotZ);
-
-
-
-
-                // If landmark detection was enabled (mouth, ears, eyes, cheeks, and
-                // nose available):
-//                                FirebaseVisionFaceLandmark leftEar = face.getLandmark(FirebaseVisionFaceLandmark.LEFT_EAR);
-//                                if (leftEar != null) {
-//                                    FirebaseVisionPoint leftEarPos = leftEar.getPosition();
-//                                }
-//
-//                                // If classification was enabled:
-//                                if (face.getSmilingProbability() != FirebaseVisionFace.UNCOMPUTED_PROBABILITY) {
-//                                    float smileProb = face.getSmilingProbability();
-//                                }
-//                                if (face.getRightEyeOpenProbability() != FirebaseVisionFace.UNCOMPUTED_PROBABILITY) {
-//                                    float rightEyeOpenProb = face.getRightEyeOpenProbability();
-//                                }
-
-                // If face tracking was enabled:
-//                                if (face.getTrackingId() != FirebaseVisionFace.INVALID_ID) {
-//                                    int id = face.getTrackingId();
-//                                }
-
             }
 
             onFaceDetected(faces!=null && faces.size()>0);
-
-
             // [END get_face_info]
             // [END_EXCLUDE]
         }
     };
-    OnFailureListener failureListener = new OnFailureListener() {
+    private OnFailureListener failureListener = new OnFailureListener() {
         @Override
         public void onFailure(@NonNull Exception e) {
             // Task failed with an exception
@@ -464,29 +408,55 @@ public class Preview{
 // [END run_detector]
     }
 
-    long lastFaceDetectRequest = 0;
-    Long lastChanged = null;
-    Boolean lastFaceDetected = null;
-    private void onFaceDetected(boolean detected){
 
+
+    private long lastFaceDetectRequest = 0;
+    private Long lastChanged = null;
+    private Boolean lastFaceDetected = null;
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private void onFaceDetected(boolean detected) {
         Log.d("power", "face detected: " + detected);
         if(!Objects.equals(detected, lastFaceDetected)){
             Log.d("power", "diff");
             lastChanged = System.currentTimeMillis();
             lastFaceDetected = detected;
+            if(lastFaceDetected){
+                capture();
+            }
         } else {
             Log.d("power", "same");
         }
-        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(1)){
+        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(0)) {
             Log.d("power", "trigger..");
 
-            if(lastFaceDetected && !powerManager.isInteractive()){
+            if (lastFaceDetected && !powerManager.isInteractive()) {
                 Log.d("power", "wake up");
                 PowerManagerHelper.wakeUp(powerManager, SystemClock.uptimeMillis());
-            } else if(!lastFaceDetected && powerManager.isInteractive()){
+
+
+            }
+            else if(!lastFaceDetected && powerManager.isInteractive()) {
                 Log.d("power", "goto sleep");
                 //PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
             }
+        }
+    }
+    public interface OnImageCapturedListener{
+        void onImageCaptured(File file);
+    }
+    OnImageCapturedListener listener;
+    public void setOnImageCapturedListener(OnImageCapturedListener listener){
+        this.listener = listener;
+    }
+
+    private void capture(){
+        try {
+            initSave(bytes);
+            if (listener != null) {
+                listener.onImageCaptured(capturedFile);
+            }
+        } catch (Exception e){
+            e.printStackTrace();
         }
     }
 }

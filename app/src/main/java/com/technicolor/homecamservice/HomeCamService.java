@@ -5,8 +5,12 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.SurfaceTexture;
+import android.os.Handler;
 import android.os.IBinder;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -14,24 +18,36 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.ImageView;
+import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
 import static com.technicolor.homecamservice.App.CHANNEL_ID;
 
-public class HomeCamService extends Service {
+public class HomeCamService extends Service implements Preview.OnImageCapturedListener {
     static final int REQUEST_CAMERA = 1;
     private static final String TAG = "CAMERA MANAGER";
     private Context mContext;
     private Preview preview;
     private TextureView texturePreview;
+    private ImageView imageCaptured;
+    private TextView textDatetime;
+    private Handler mainHandler;
+    private View overlayView;
+
     @Override
     public void onCreate() {
         super.onCreate();
+        mainHandler = new Handler();
         showOverlayView();
     }
-    private View overlayView;
+
     private void showOverlayView(){
         LayoutInflater inflate = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
@@ -53,7 +69,9 @@ public class HomeCamService extends Service {
             @Override
             public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
                 preview = new Preview(getApplicationContext(), texturePreview);
+                preview.setOnImageCapturedListener(HomeCamService.this);
                 preview.openCamera();
+                updateTime();
             }
 
             @Override
@@ -71,6 +89,11 @@ public class HomeCamService extends Service {
 
             }
         });
+
+        imageCaptured = overlayView.findViewById(R.id.imageCaptured);
+        imageCaptured.setVisibility(View.GONE);
+
+        textDatetime = overlayView.findViewById(R.id.textDatetime);
 
         wm.addView(overlayView, params);
     }
@@ -109,4 +132,47 @@ public class HomeCamService extends Service {
         return null;
     }
 
+    Bitmap bitmapCaptured = null;
+    @Override
+    public void onImageCaptured(final File file) {
+        mainHandler.removeCallbacksAndMessages(null);
+        mainHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                clearCapturedImage();
+                imageCaptured.setVisibility(View.VISIBLE);
+                BitmapFactory.Options options = new BitmapFactory.Options();
+                options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+                bitmapCaptured = BitmapFactory.decodeFile(file.getAbsolutePath(), options);
+                imageCaptured.setImageBitmap(bitmapCaptured);
+                textDatetime.setText(file.getName());
+                textDatetime.setTextColor(Color.RED);
+            }
+        });
+        mainHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                clearCapturedImage();
+                imageCaptured.setVisibility(View.GONE);
+                updateTime();
+            }
+        }, 5000);
+    }
+    public void clearCapturedImage(){
+        if(bitmapCaptured!=null){
+            bitmapCaptured.recycle();
+            bitmapCaptured = null;
+        }
+    }
+    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy.MM.dd HH:mm:ss");
+    public void updateTime(){
+        textDatetime.setText(DATE_FORMAT.format(new Date()));
+        textDatetime.setTextColor(Color.DKGRAY);
+        mainHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                updateTime();
+            }
+        }, 1000);
+    }
 }
