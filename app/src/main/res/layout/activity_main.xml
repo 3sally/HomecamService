@@ -20,12 +20,12 @@
         android:gravity="center"
         android:layout_weight="8"/>
 
-    <Button
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:onClick="Sleep"
-        android:text="Sleep"
-        android:layout_weight="1"/>
+<!--    <Button-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:onClick="Sleep"-->
+<!--        android:text="Sleep"-->
+<!--        android:layout_weight="1"/>-->
 
     <Button
         android:layout_width="match_parent"

@@ -8,6 +8,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
+import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
@@ -25,6 +26,7 @@ import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.Image;
 import android.media.ImageReader;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -32,18 +34,31 @@ import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
 import android.util.Size;
+import android.view.Display;
+import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.Surface;
+import android.view.SurfaceView;
 import android.view.TextureView;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
+import com.google.android.gms.vision.text.Line;
 import com.google.firebase.ml.vision.FirebaseVision;
 import com.google.firebase.ml.vision.common.FirebaseVisionImage;
 import com.google.firebase.ml.vision.common.FirebaseVisionPoint;
@@ -67,6 +82,8 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -86,6 +103,7 @@ public class Preview{
     private CameraCaptureSession mPreviewSession;
     private TextureView mTextureView;
     private SurfaceTexture mPreviewSurfaceTexture;
+    private TextureView mPreview;
     private CameraCharacteristics characteristics;
     private HandlerThread jobThread;
     private  Handler backgroundHandler;
@@ -94,8 +112,8 @@ public class Preview{
     private String timeStamp;
     private String path;
     FirebaseVisionFaceDetector detector;
-    private PowerManager pm;
     private Bitmap myBitmap;
+    byte[] bytes;
 
 
     PowerManager powerManager;
@@ -252,10 +270,9 @@ public class Preview{
                     image.close();
                     return;
                 }
-
                 Log.d(TAG, "onImageAvailable: " + image.getWidth() + "x" + image.getHeight());
                 ByteBuffer buffer = image.getPlanes()[0].getBuffer();
-                byte[] bytes = new byte[buffer.capacity()];
+                bytes = new byte[buffer.capacity()];
                 buffer.get(bytes);
                 myBitmap = BitmapFactory.decodeByteArray(bytes,0,bytes.length);
                 try {
@@ -263,60 +280,7 @@ public class Preview{
                 } catch (IOException e) {
 
                 }
-
-                //path = Environment.getExternalStorageDirectory() + "/Pictures/";
-                path = mContext.getFilesDir()  + "/Captured/";
-                File pathFile = new File(path);
-                if(!pathFile.exists()){
-                    pathFile.mkdir();
-                }
-                timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-                File file = new File(path, timeStamp + ".jpg");
-                File[] files = pathFile.listFiles();
-                if(files!=null) {
-                    int fileLength = files.length;
-                    Log.v("Files :", String.valueOf(fileLength));
-                    del(files);
-                    try {
-                        //if (!file.exists() && Integer.parseInt(timeStamp.substring(9, 13)) % 10 == 0) {
-                            save(bytes);
-
-                            Log.e("ImageReader : ", "save Image : " + timeStamp);
-                        //}
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-
                 image.close();
-            }
-
-            private void save(byte[] bytes) throws IOException {
-                OutputStream output = null;
-                try {
-                    output = new FileOutputStream(path + timeStamp + ".jpg");
-                    output.write(bytes);
-                } finally {
-                    if (null != output) {
-                        output.close();
-                    }
-                }
-            }
-
-            private void del(File[] files) {
-                long todayMil = System.currentTimeMillis();
-                Calendar fileCal = Calendar.getInstance();
-                Date fileDate = null;
-                for (int j = 0; j < files.length; j++) {
-                    fileDate = new Date(files[j].lastModified());
-                    fileCal.setTime(fileDate);
-                    long diffMil = todayMil - fileCal.getTimeInMillis();
-                    int diffTime = (int) (diffMil / (6 * 60 * 60 * 1000));
-                    if (diffTime >= 1 && files[j].exists()) {
-                        Log.e("Files : ", "DelFile" + timeStamp + ".jpg");
-                        files[j].delete();
-                    }
-                }
             }
         }, backgroundHandler);
         outputSurfaces.add(imageReader.getSurface());
@@ -342,7 +306,6 @@ public class Preview{
                 @Override
                 public void onConfigureFailed(CameraCaptureSession session) {
                     // TODO Auto-generated method stub
-                    Toast.makeText(mContext, "onConfigureFailed", Toast.LENGTH_LONG).show();
                 }
                 //null -> backgoundHandler
             }, backgroundHandler);
@@ -351,17 +314,64 @@ public class Preview{
             e.printStackTrace();
         }
     }
+    private File file;
+    private String fileName;
+    @SuppressLint("SimpleDateFormat")
+    private void initSave(byte[] SaveBytes) throws IOException {
+        path = mContext.getFilesDir() + "/Captured/";
 
-    private void takePicture(){
-        try {
-            CaptureRequest.Builder captureBuilder =
-                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
-            captureBuilder.addTarget(imageReader.getSurface());
-            mPreviewSession.capture(captureBuilder.build(), null, backgroundHandler);
-        } catch (Exception e){
-            e.printStackTrace();
+        Log.d("DIR", "" + path);
+        File pathFile = new File(path);
+        if (!pathFile.exists()) {
+            pathFile.mkdir();
+        }
+//        int count = 0;
+        timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        fileName = path +""+timeStamp+".jpg";
+        file = new File(fileName);
+        File[] files = pathFile.listFiles();
+        if (files != null) {
+            int fileLength = files.length;
+            Log.v("Files :", String.valueOf(fileLength));
+        }
+//        if(file.exists()){
+//            count ++;
+//        }
+        save(SaveBytes);
+        del(files);
+
+    }
+    private void save(byte[] SaveBytes) throws IOException {
+        try (OutputStream output = new FileOutputStream(file)) {
+            output.write(SaveBytes);
         }
     }
+
+    private void del(File[] files) {
+        long todayMil = System.currentTimeMillis();
+        Calendar fileCal = Calendar.getInstance();
+        Date fileDate = null;
+        for (File value : files) {
+            fileDate = new Date(value.lastModified());
+            fileCal.setTime(fileDate);
+            long diffMil = todayMil - fileCal.getTimeInMillis();
+            int diffTime = (int) (diffMil / (24 * 60 * 60 * 1000));
+            if (diffTime >= 1 && value.exists()) {
+                value.delete();
+            }
+        }
+    }
+
+//    private void takePicture(){
+//        try {
+//            CaptureRequest.Builder captureBuilder =
+//                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE);
+//            captureBuilder.addTarget(imageReader.getSurface());
+//            mPreviewSession.capture(captureBuilder.build(), null, backgroundHandler);
+//        } catch (Exception e){
+//            e.printStackTrace();
+//        }
+//    }
 
     private void updatePreview() {
         if(null == mCameraDevice) {
@@ -385,7 +395,8 @@ public class Preview{
     }
     private Semaphore mCameraOpenCloseLock = new Semaphore(1);
 
-    OnSuccessListener successListener =new OnSuccessListener<List<FirebaseVisionFace>>() {
+    private OnSuccessListener successListener =new OnSuccessListener<List<FirebaseVisionFace>>() {
+        @RequiresApi(api = Build.VERSION_CODES.O)
         @Override
         public void onSuccess(List<FirebaseVisionFace> faces) {
             if(myBitmap !=null){
@@ -405,39 +416,19 @@ public class Preview{
                 float rotZ = face.getHeadEulerAngleZ();  // Head is tilted sideways rotZ degrees
 
                 Log.e("test", ""+bounds+ ""+rotY+"" + rotZ);
-
-
-
-
-                // If landmark detection was enabled (mouth, ears, eyes, cheeks, and
-                // nose available):
-//                                FirebaseVisionFaceLandmark leftEar = face.getLandmark(FirebaseVisionFaceLandmark.LEFT_EAR);
-//                                if (leftEar != null) {
-//                                    FirebaseVisionPoint leftEarPos = leftEar.getPosition();
-//                                }
-//
-//                                // If classification was enabled:
-//                                if (face.getSmilingProbability() != FirebaseVisionFace.UNCOMPUTED_PROBABILITY) {
-//                                    float smileProb = face.getSmilingProbability();
-//                                }
-//                                if (face.getRightEyeOpenProbability() != FirebaseVisionFace.UNCOMPUTED_PROBABILITY) {
-//                                    float rightEyeOpenProb = face.getRightEyeOpenProbability();
-//                                }
-
-                // If face tracking was enabled:
-//                                if (face.getTrackingId() != FirebaseVisionFace.INVALID_ID) {
-//                                    int id = face.getTrackingId();
-//                                }
-
             }
 
-            onFaceDetected(faces!=null && faces.size()>0);
+            try {
+                onFaceDetected(faces!=null && faces.size()>0);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
 
             // [END get_face_info]
             // [END_EXCLUDE]
         }
     };
-    OnFailureListener failureListener = new OnFailureListener() {
+    private OnFailureListener failureListener = new OnFailureListener() {
         @Override
         public void onFailure(@NonNull Exception e) {
             // Task failed with an exception
@@ -464,11 +455,11 @@ public class Preview{
     }
 
 
-
-    long lastFaceDetectRequest = 0;
-    Long lastChanged = null;
-    Boolean lastFaceDetected = null;
-    private void onFaceDetected(boolean detected){
+    private long lastFaceDetectRequest = 0;
+    private Long lastChanged = null;
+    private Boolean lastFaceDetected = null;
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private void onFaceDetected(boolean detected) throws IOException {
         Log.d("power", "face detected: " + detected);
         if(!Objects.equals(detected, lastFaceDetected)){
             Log.d("power", "diff");
@@ -477,16 +468,120 @@ public class Preview{
         } else {
             Log.d("power", "same");
         }
-        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(1)){
+        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(1)) {
             Log.d("power", "trigger..");
 
-            if(lastFaceDetected && !powerManager.isInteractive()){
+            if (lastFaceDetected && !powerManager.isInteractive()) {
                 Log.d("power", "wake up");
                 PowerManagerHelper.wakeUp(powerManager, SystemClock.uptimeMillis());
-            } else if(!lastFaceDetected && powerManager.isInteractive()){
+
+                initSave(bytes);
+                initImageShow();
+                backgroundHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        initOverlay();
+
+                    }
+                },5000);
+            }
+            else if(!lastFaceDetected && powerManager.isInteractive()) {
                 Log.d("power", "goto sleep");
                 PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
             }
         }
+    }
+    private WindowManager sideWm;
+    private void initOverlay(){
+        LayoutInflater li = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        sideWm = (WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE);
+        View sideView = li.inflate(R.layout.overlay, null);
+        mPreview = sideView.findViewById(R.id.texPreview);
+        Log.e("is with Preview", "Open");
+
+
+        int type = 0;
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+            type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        } else {
+            type = WindowManager.LayoutParams.TYPE_PHONE;
+        }
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+        );
+
+        mPreview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                Preview sidePreview = new Preview(mContext, mPreview);
+                sidePreview.openCamera();
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                return false;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+            }
+        });
+
+        sideWm.addView(sideView, params);
+
+
+        Log.e("is with Preview", "Open");
+    }
+    private WindowManager imageWm;
+    private void initImageShow(){
+        LayoutInflater li = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        imageWm = (WindowManager)mContext.getSystemService(Context.WINDOW_SERVICE);
+        final View imageView = li.inflate(R.layout.imageshow, null);
+        ImageView image = (ImageView)imageView.findViewById(R.id.imageview);
+        image.setScaleType(ImageView.ScaleType.FIT_XY);
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        Bitmap myImage = BitmapFactory.decodeFile(fileName, options);
+        Log.e("filepath", path);
+        image.setImageBitmap(myImage);
+        Log.e("is with Preview", "Open");
+
+
+        int type = 0;
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O){
+            type = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        } else {
+            type = WindowManager.LayoutParams.TYPE_PHONE;
+        }
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                type,
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        | WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                        | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+        );
+        imageWm.addView(imageView, params);
+        Timer tm = new Timer();
+        tm.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                imageWm.removeView(imageView);
+            }
+        }, 5000);
+        Log.e("is with Preview", "Open");
     }
 }

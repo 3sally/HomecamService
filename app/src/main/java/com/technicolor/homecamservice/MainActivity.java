@@ -41,23 +41,27 @@ public class MainActivity extends AppCompatActivity {
         preview =new Preview(getApplicationContext());
 
         if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.SYSTEM_ALERT_WINDOW) != PackageManager.PERMISSION_GRANTED) {
             // 권한이 없으면 권한을 요청한다.
             ActivityCompat.requestPermissions(this,
                     new String[]{Manifest.permission.CAMERA,
-                            Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                            Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                                Manifest.permission.SYSTEM_ALERT_WINDOW},
                     200);
         }
     }
     public void Sleep(View v) throws InterruptedException {
-        PowerManagerHelper.goToSleep(pm, SystemClock.uptimeMillis());
-        Thread.sleep(10000);
-        PowerManagerHelper.wakeUp(pm, SystemClock.uptimeMillis());
+//        PowerManagerHelper.goToSleep(pm, SystemClock.uptimeMillis());
+//        Thread.sleep(10000);
+//        PowerManagerHelper.wakeUp(pm, SystemClock.uptimeMillis());
     }
 
     public void startService(View v) throws InterruptedException {
         Intent serviceIntent = new Intent(this, HomeCamService.class);
         ContextCompat.startForegroundService(this, serviceIntent);
+        PowerManagerHelper.goToSleep(pm, SystemClock.uptimeMillis());
+
 
     }
     public void stopService(View v) {
