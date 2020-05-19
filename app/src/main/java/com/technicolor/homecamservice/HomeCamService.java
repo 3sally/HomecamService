@@ -29,6 +29,7 @@ import android.widget.TextView;
 import androidx.annotation.Nullable;
 import androidx.core.app.NotificationCompat;
 
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.ml.vision.face.FirebaseVisionFace;
 
 import java.io.File;
@@ -51,11 +52,16 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
     private Handler mainHandler;
     private View overlayView;
 
+    private FirebaseAuth mAuth;
+
     @Override
     public void onCreate() {
         super.onCreate();
         mainHandler = new Handler();
         showOverlayView();
+
+        mAuth = FirebaseAuth.getInstance();
+        mAuth.signInAnonymously();
     }
 
     private void showOverlayView(){

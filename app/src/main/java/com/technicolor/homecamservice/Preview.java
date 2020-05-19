@@ -39,13 +39,18 @@ import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.ml.vision.FirebaseVision;
 import com.google.firebase.ml.vision.common.FirebaseVisionImage;
 import com.google.firebase.ml.vision.face.FirebaseVisionFace;
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetector;
 import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.UploadTask;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -314,7 +319,37 @@ public class Preview{
 //        }
         save(SaveBytes);
         deleteOldCapturedImages();
+        FirebaseStorage storage = FirebaseStorage.getInstance();
+        final FileInputStream input = new FileInputStream(capturedFile);
+        final String uploadName = capturedFile.getName();
+        UploadTask uploadTask = storage.getReference("captured/" + capturedFile.getName()).putStream(input);
+        uploadTask.addOnFailureListener(new OnFailureListener() {
+            @Override
+            public void onFailure(@NonNull Exception e) {
+                Log.d(TAG, "upload failed: " + e);
+                try {
+                    input.close();
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
 
+            }
+        }).addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+            @Override
+            public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+                Log.d(TAG, "upload successed..");
+
+                FirebaseDatabase database = FirebaseDatabase.getInstance();
+                DatabaseReference ref = database.getReference("last_captured");
+                ref.setValue(uploadName);
+
+                try {
+                    input.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        });
     }
     private void save(byte[] SaveBytes) throws IOException {
         try (OutputStream output = new FileOutputStream(capturedFile)) {
@@ -426,7 +461,7 @@ public class Preview{
     private Long lastChanged = null;
     private Boolean lastFaceDetected = null;
 
-    private static final int MAX_FILTER_COUNT = 10;
+    private static final int MAX_FILTER_COUNT = 5;
     private int filterCount = 0;
 
     @RequiresApi(api = Build.VERSION_CODES.O)
@@ -447,7 +482,7 @@ public class Preview{
             Log.d("power", "same");
             filterCount = 0;
         }
-        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(1)
+        if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(0)
             && lastFaceDetected && !powerManager.isInteractive()) {
                 Log.d("power", "wake up");
                 PowerManagerHelper.wakeUp(powerManager, SystemClock.uptimeMillis());

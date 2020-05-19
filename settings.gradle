@@ -1,2 +1,3 @@
 rootProject.name='HomeCamService'
 include ':app'
+include ':democlient'
