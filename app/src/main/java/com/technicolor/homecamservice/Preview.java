@@ -514,7 +514,7 @@ public class Preview{
         this.listener = listener;
     }
 
-    private void capture(){
+    public void capture(){
         try {
             initSave(bytes);
             if (listener != null) {
