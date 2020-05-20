@@ -16,6 +16,7 @@ import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.os.Handler;
 import android.os.IBinder;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.SurfaceView;
@@ -180,10 +181,18 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
         }, 5000);
     }
 
+    private void project(Rect rect, int srcWidth, int srcHeight, int destWidth, int destHeight){
+        rect.right = rect.right * destWidth / srcWidth;
+        rect.left = rect.left * destWidth / srcWidth;
+        rect.top = rect.top * destHeight / srcHeight;
+        rect.bottom = rect.bottom * destHeight / srcHeight;
+    }
 
 
     @Override
-    public void onFaceDetected(List<FirebaseVisionFace> faces){
+    public void onFaceDetected(List<FirebaseVisionFace> faces, int width, int height){
+        int screenHeight = surfaceOSD.getMeasuredHeight();
+        int screenWidth = surfaceOSD.getMeasuredWidth();
         if(faces!=null && faces.size()>0){
             Canvas canvas = surfaceOSD.getHolder().lockCanvas();
             if(canvas==null) return;
@@ -193,7 +202,9 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
                 paint.setColor(Color.DKGRAY);
                 paint.setStrokeWidth(1);
                 paint.setStyle(Paint.Style.STROKE);
-                canvas.drawRect(face.getBoundingBox(), paint);
+                Rect rect = face.getBoundingBox();
+                project(rect, width, height, screenWidth, screenHeight);
+                canvas.drawRect(rect, paint);
             }
 
             surfaceOSD.getHolder().unlockCanvasAndPost(canvas);
