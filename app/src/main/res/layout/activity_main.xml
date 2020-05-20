@@ -48,5 +48,13 @@
         android:text="View Preview"
         android:layout_weight="1"/>
 
+    <Button
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:onClick="imageList"
+        android:text="Image List"
+        android:layout_weight="1"/>
+
+
 
 </LinearLayout>

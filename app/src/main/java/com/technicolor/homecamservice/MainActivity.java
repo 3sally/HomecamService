@@ -66,6 +66,10 @@ public class MainActivity extends AppCompatActivity {
         Intent viewIntent = new Intent(this, ViewActivity.class);
         startActivity(viewIntent);
     }
+    public void imageList(View v)  {
+        Intent imageIntent = new Intent(this, GalleryActivity.class);
+        startActivity(imageIntent);
+    }
 
     @Override
     protected void onDestroy() {
