@@ -92,6 +92,7 @@ public class Preview{
 
 
     PowerManager powerManager;
+    private static final int IMAGE_SCALER = 4;
 
     Preview(Context context) {
         this(context, new SurfaceTexture(0));
@@ -172,9 +173,12 @@ public class Preview{
     void openCamera() {
         CameraManager manager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
         Log.e(TAG, "openCamera E");
+
         try {
             String cameraId = getCameraId(manager);
+
             Log.e(TAG, "found: " + cameraId);
+            if(cameraId==null) return;
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             Size[] sizes = map.getOutputSizes(ImageFormat.JPEG);
@@ -254,7 +258,7 @@ public class Preview{
                 buffer.get(bytes);
                 Bitmap bitmap = BitmapFactory.decodeByteArray(bytes,0,bytes.length);
 
-                myBitmap = Bitmap.createScaledBitmap(bitmap,  mPreviewSize.getWidth()/4, mPreviewSize.getHeight()/4, false);
+                myBitmap = Bitmap.createScaledBitmap(bitmap,  mPreviewSize.getWidth()/IMAGE_SCALER, mPreviewSize.getHeight()/IMAGE_SCALER, false);
                 try {
                     detectFaces(myBitmap);
                 } catch (IOException e) {
@@ -402,8 +406,9 @@ public class Preview{
                 myBitmap.recycle();
                 myBitmap = null;
             }
+
             if(listener!=null){
-                listener.onFaceDetected(faces);
+                listener.onFaceDetected(faces, mPreviewSize.getWidth()/IMAGE_SCALER, mPreviewSize.getHeight()/IMAGE_SCALER);
             }
 
             // Task completed successfully
@@ -414,6 +419,12 @@ public class Preview{
             for (FirebaseVisionFace face : faces) {
                 int Id=face.getTrackingId();
                 Rect bounds = face.getBoundingBox();
+
+                bounds.bottom *= IMAGE_SCALER;
+                bounds.top *= IMAGE_SCALER;
+                bounds.left *= IMAGE_SCALER;
+                bounds.right *= IMAGE_SCALER;
+
                 float rotY = face.getHeadEulerAngleY();  // Head is rotated to the right rotY degrees
                 float rotZ = face.getHeadEulerAngleZ();  // Head is tilted sideways rotZ degrees
 
@@ -432,7 +443,7 @@ public class Preview{
             // Task failed with an exception
             Log.e("Face Detector", "Task failed");
             if(listener!=null){
-                listener.onFaceDetected(null);
+                listener.onFaceDetected(null, 0, 0);
             }
             // ...
             if(myBitmap !=null){
@@ -496,14 +507,14 @@ public class Preview{
     }
     public interface OnEventListener {
         void onImageCaptured(File file);
-        void onFaceDetected(List<FirebaseVisionFace> faces);
+        void onFaceDetected(List<FirebaseVisionFace> faces, int width, int height);
     }
     OnEventListener listener;
     public void setOnImageCapturedListener(OnEventListener listener){
         this.listener = listener;
     }
 
-    private void capture(){
+    public void capture(){
         try {
             initSave(bytes);
             if (listener != null) {
