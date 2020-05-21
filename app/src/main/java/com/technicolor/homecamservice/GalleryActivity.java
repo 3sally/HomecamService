@@ -1,41 +1,84 @@
 package com.technicolor.homecamservice;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.ImageView;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
+import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
 public class GalleryActivity extends AppCompatActivity {
     private ImageView imageView;
     RecyclerView recyclerView;
     GridLayoutManager gridLayoutManager;
-    ImagePath mImagePath;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        mImagePath  = new ImagePath(getApplicationContext());
         setContentView(R.layout.activity_gallery);
         imageView = (ImageView) findViewById(R.id.imageView);
         recyclerView = (RecyclerView) findViewById(R.id.recyclerView);
-        gridLayoutManager = new GridLayoutManager(getApplicationContext(), 1);
+        gridLayoutManager = new GridLayoutManager(getApplicationContext(), 3);
         recyclerView.setLayoutManager(gridLayoutManager);
 
-        ArrayList imageUrlList = prepareData();
-        String[] textList = getTextlist();
-        DataAdapter dataAdapter = new DataAdapter(getApplicationContext(), imageUrlList, textList);
+
+
+        loadImages();
+
+
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        DatabaseReference ref = database.getReference("last_captured");
+        ref.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                loadImages();
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+
+            }
+        });
+    }
+
+    private void loadImages(){
+        String path = getFilesDir().getPath() +"/Captured";
+        File imageRoot = new File(path);
+        List<File> files = new ArrayList<>();
+        if(imageRoot.exists() && imageRoot.listFiles()!=null && imageRoot.listFiles().length>0){
+            files = new ArrayList<>(Arrays.asList(imageRoot.listFiles()));
+        }
+        Collections.sort(files, new Comparator<File>() {
+            @Override
+            public int compare(File o1, File o2) {
+                return -o1.getName().compareTo(o2.getName());
+            }
+        });
+        DataAdapter dataAdapter = new DataAdapter(getApplicationContext(), files);
         recyclerView.setAdapter(dataAdapter);
     }
 
-    private ArrayList prepareData() {
-        return mImagePath.imagePath();
-    }
-    private String[] getTextlist(){
-        return mImagePath.textList();
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Intent serviceIntent = new Intent(this, HomeCamService.class);
+        ContextCompat.startForegroundService(this, serviceIntent);
     }
 }

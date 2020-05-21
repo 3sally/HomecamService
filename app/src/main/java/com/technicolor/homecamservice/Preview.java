@@ -264,6 +264,7 @@ public class Preview{
                 } catch (IOException e) {
 
                 }
+                bitmap.recycle();
                 image.close();
             }
         }, backgroundHandler);

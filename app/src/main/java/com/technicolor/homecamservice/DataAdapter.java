@@ -12,23 +12,23 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 
+import java.io.File;
 import java.util.ArrayList;
+import java.util.List;
 
 public class DataAdapter extends RecyclerView.Adapter<DataAdapter.ViewHolder> {
-    ArrayList<ImagePath> imageUrls;
+    List<File> files;
     private Context context;
-    private String[] textSet;
 
-    public DataAdapter(Context context, ArrayList<ImagePath> imageUrls, String[] textSet) {
+    public DataAdapter(Context context, List<File> files) {
         this.context = context;
-        this.imageUrls = imageUrls;
-        this.textSet = textSet;
+        this.files = files;
 
     }
 
     @Override
     public DataAdapter.ViewHolder onCreateViewHolder(ViewGroup viewGroup, int i) {
-        View view = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.image_layout, viewGroup, false);
+        View view = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.item_gallery, viewGroup, false);
         return new ViewHolder(view);
     }
 
@@ -40,16 +40,14 @@ public class DataAdapter extends RecyclerView.Adapter<DataAdapter.ViewHolder> {
      */
     @Override
     public void onBindViewHolder(ViewHolder viewHolder, int i) {
-        Log.e("imageUrls",""+imageUrls.get(i));
-        Glide.with(context).load(imageUrls.get(i)).into(viewHolder.imageView);
-        viewHolder.textView.setText(this.textSet[i]);
+        Glide.with(context).load(files.get(i).getAbsoluteFile()).into(viewHolder.imageView);
+        viewHolder.textView.setText(files.get(i).getName());
 
     }
 
     @Override
     public int getItemCount() {
-        //??????
-        return imageUrls.size()/2;
+        return files.size();
     }
 
     public class ViewHolder extends RecyclerView.ViewHolder {
