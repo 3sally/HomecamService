@@ -19,16 +19,20 @@ import java.util.List;
 public class DataAdapter extends RecyclerView.Adapter<DataAdapter.ViewHolder> {
     List<File> files;
     private Context context;
+    private int layout;
 
-    public DataAdapter(Context context, List<File> files) {
+    public DataAdapter(Context context, List<File> files, int layout) {
         this.context = context;
         this.files = files;
-
+        this.layout = layout;
+    }
+    public void setData(List<File> files){
+        this.files.add(0, files.get(0));
     }
 
     @Override
     public DataAdapter.ViewHolder onCreateViewHolder(ViewGroup viewGroup, int i) {
-        View view = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.item_gallery, viewGroup, false);
+        View view = LayoutInflater.from(viewGroup.getContext()).inflate(layout, viewGroup, false);
         return new ViewHolder(view);
     }
 

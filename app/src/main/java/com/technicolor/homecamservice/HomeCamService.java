@@ -1,5 +1,6 @@
 package com.technicolor.homecamservice;
 
+import android.animation.Animator;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
@@ -24,12 +25,16 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.view.ContextThemeWrapper;
 import androidx.core.app.NotificationCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
@@ -44,6 +49,10 @@ import com.google.firebase.ml.vision.face.FirebaseVisionFace;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 
@@ -63,6 +72,7 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
     private View overlayView;
 
     private FirebaseAuth mAuth;
+    private RecyclerView recyclerCapturedList;
 
     @Override
     public void onCreate() {
@@ -95,7 +105,6 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
     }
 
     private void showOverlayView(){
-        LayoutInflater inflate = (LayoutInflater) getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
 
         WindowManager.LayoutParams params = new WindowManager.LayoutParams(
@@ -108,7 +117,10 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
                 PixelFormat.TRANSLUCENT);
 
         params.gravity = Gravity.LEFT | Gravity.TOP;
-        overlayView = inflate.inflate(R.layout.overlay_homecamservice, null);
+
+
+        overlayView = LayoutInflater.from(new ContextThemeWrapper(this, R.style.AppTheme)).inflate(R.layout.overlay_homecamservice, null);
+
 
         texturePreview = overlayView.findViewById(R.id.preview);
         texturePreview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
@@ -145,6 +157,11 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
         surfaceOSD.getHolder().setFormat(PixelFormat.TRANSPARENT);
         surfaceOSD.setZOrderOnTop(true);
         wm.addView(overlayView, params);
+
+        recyclerCapturedList = overlayView.findViewById(R.id.capturedList);
+        LinearLayoutManager linearLayoutManager = new LinearLayoutManager(this);
+        linearLayoutManager.setOrientation(RecyclerView.HORIZONTAL);
+        recyclerCapturedList.setLayoutManager(linearLayoutManager);
     }
     
     @Override
@@ -206,8 +223,9 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
                 surfaceOSD.setVisibility(View.VISIBLE);
                 imageCaptured.setVisibility(View.GONE);
                 updateTime();
+                loadImages();
             }
-        }, 5000);
+        }, 500);
     }
 
     private void project(Rect rect, int srcWidth, int srcHeight, int destWidth, int destHeight){
@@ -217,6 +235,11 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
         rect.bottom = rect.bottom * destHeight / srcHeight;
     }
 
+
+    @Override
+    public void onFaceDetectedFiltered(boolean detected) {
+        showOverlay(detected);
+    }
 
     @Override
     public void onFaceDetected(List<FirebaseVisionFace> faces, int width, int height){
@@ -235,7 +258,6 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
                 project(rect, width, height, screenWidth, screenHeight);
                 canvas.drawRect(rect, paint);
             }
-
             surfaceOSD.getHolder().unlockCanvasAndPost(canvas);
         } else {
             Canvas canvas = surfaceOSD.getHolder().lockCanvas();
@@ -261,5 +283,108 @@ public class HomeCamService extends Service implements Preview.OnEventListener {
                 updateTime();
             }
         }, 1000);
+    }
+    DataAdapter dataAdapter = null;
+    private void loadImages(){
+        String path = getFilesDir().getPath() +"/Captured";
+        File imageRoot = new File(path);
+        List<File> files = new ArrayList<>();
+        if(imageRoot.exists() && imageRoot.listFiles()!=null && imageRoot.listFiles().length>0){
+            files = new ArrayList<>(Arrays.asList(imageRoot.listFiles()));
+        }
+        Collections.sort(files, new Comparator<File>() {
+            @Override
+            public int compare(File o1, File o2) {
+                return -o1.getName().compareTo(o2.getName());
+            }
+        });
+
+        if(dataAdapter==null) {
+            dataAdapter = new DataAdapter(getApplicationContext(), files, R.layout.item_overlay_captured_list);
+            recyclerCapturedList.setAdapter(dataAdapter);
+            recyclerCapturedList.setLayoutAnimation(AnimationUtils.loadLayoutAnimation(this, R.anim.list_layout_animation));
+            recyclerCapturedList.scheduleLayoutAnimation();
+        } else {
+            dataAdapter.setData(files);
+            recyclerCapturedList.setLayoutAnimation(AnimationUtils.loadLayoutAnimation(this, R.anim.list_layout_animation));
+            dataAdapter.notifyDataSetChanged();
+            recyclerCapturedList.scheduleLayoutAnimation();
+        }
+    }
+
+    private Runnable captureTask = new Runnable() {
+        @Override
+        public void run() {
+            Log.d("capture_task", "try capture");
+            preview.capture();
+            mainHandler.postDelayed(captureTask, 10000);
+        }
+    };
+    boolean overlayIsShowing = false;
+
+    private void showOverlay(boolean show){
+        if(show && !overlayIsShowing){
+            overlayIsShowing = true;
+            //overlayView.setVisibility(View.VISIBLE);
+            startCaptureTask();
+
+            overlayView.setVisibility(View.VISIBLE);
+            overlayView.animate().alpha(1).setListener(new Animator.AnimatorListener() {
+                @Override
+                public void onAnimationStart(Animator animation) {
+
+                }
+
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    overlayView.setAlpha(1);
+                    loadImages();
+                }
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+
+                }
+
+                @Override
+                public void onAnimationRepeat(Animator animation) {
+
+                }
+            });
+        } else if(!show && overlayIsShowing){
+            overlayIsShowing = false;
+            stopCaptureTask();
+            overlayView.animate().alpha(0).setListener(new Animator.AnimatorListener() {
+                @Override
+                public void onAnimationStart(Animator animation) {
+
+                }
+
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    overlayView.setAlpha(0);
+                    overlayView.setVisibility(View.INVISIBLE);
+                }
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+
+                }
+
+                @Override
+                public void onAnimationRepeat(Animator animation) {
+
+                }
+            });
+        }
+    }
+
+    private void startCaptureTask(){
+        Log.d("capture_task", "start");
+        mainHandler.postDelayed(captureTask, 10000);
+    }
+    private void stopCaptureTask(){
+        Log.d("capture_task", "stop");
+        mainHandler.removeCallbacks(captureTask);
     }
 }

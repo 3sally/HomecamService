@@ -7,7 +7,9 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.PowerManager;
 import android.os.SystemClock;
+import android.view.KeyEvent;
 import android.view.View;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
@@ -23,6 +25,8 @@ import com.google.firebase.FirebaseApp;
 public class MainActivity extends AppCompatActivity {
     private Preview preview;
     private PowerManager pm;
+
+
 
     @SuppressLint("InvalidWakeLockTag")
     @Override

@@ -3,7 +3,9 @@ package com.technicolor.homecamservice;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
@@ -71,7 +73,7 @@ public class GalleryActivity extends AppCompatActivity {
                 return -o1.getName().compareTo(o2.getName());
             }
         });
-        DataAdapter dataAdapter = new DataAdapter(getApplicationContext(), files);
+        DataAdapter dataAdapter = new DataAdapter(getApplicationContext(), files, R.layout.item_gallery);
         recyclerView.setAdapter(dataAdapter);
     }
 
@@ -80,5 +82,16 @@ public class GalleryActivity extends AppCompatActivity {
         super.onStart();
         Intent serviceIntent = new Intent(this, HomeCamService.class);
         ContextCompat.startForegroundService(this, serviceIntent);
+    }
+
+
+    @Override
+    public boolean onKeyLongPress(int keyCode, KeyEvent event) {
+        if(keyCode==KeyEvent.KEYCODE_0){
+            Preview.enableUpload = !Preview.enableUpload;
+            Toast.makeText(this, "enable upload: " + Preview.enableUpload, Toast.LENGTH_LONG).show();
+            return true;
+        }
+        return super.onKeyLongPress(keyCode, event);
     }
 }

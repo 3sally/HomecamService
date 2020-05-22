@@ -51,6 +51,7 @@ import com.google.firebase.storage.UploadTask;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -93,6 +94,7 @@ public class Preview{
 
     PowerManager powerManager;
     private static final int IMAGE_SCALER = 4;
+    public static boolean enableUpload =false;
 
     Preview(Context context) {
         this(context, new SurfaceTexture(0));
@@ -133,7 +135,6 @@ public class Preview{
         // [END get_detector]
     }
 
-
     void release() {
         Log.d(TAG, "release");
         jobThread.quit();
@@ -170,7 +171,7 @@ public class Preview{
         return null;
     }
 
-    void openCamera() {
+    boolean openCamera() {
         CameraManager manager = (CameraManager) mContext.getSystemService(Context.CAMERA_SERVICE);
         Log.e(TAG, "openCamera E");
 
@@ -178,7 +179,7 @@ public class Preview{
             String cameraId = getCameraId(manager);
 
             Log.e(TAG, "found: " + cameraId);
-            if(cameraId==null) return;
+            if(cameraId==null) return false;
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             Size[] sizes = map.getOutputSizes(ImageFormat.JPEG);
@@ -200,10 +201,10 @@ public class Preview{
                 manager.openCamera(cameraId, mStateCallback, null);
             }
         } catch (CameraAccessException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
+            return false;
         }
         Log.e(TAG, "openCamera X");
+        return true;
     }
 
     private CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
@@ -324,6 +325,12 @@ public class Preview{
 //        }
         save(SaveBytes);
         deleteOldCapturedImages();
+        if(enableUpload) {
+            uploadCapturedImage();
+        }
+    }
+
+    private void uploadCapturedImage() throws FileNotFoundException {
         FirebaseStorage storage = FirebaseStorage.getInstance();
         final FileInputStream input = new FileInputStream(capturedFile);
         final String uploadName = capturedFile.getName();
@@ -356,13 +363,14 @@ public class Preview{
             }
         });
     }
+
     private void save(byte[] SaveBytes) throws IOException {
         try (OutputStream output = new FileOutputStream(capturedFile)) {
             output.write(SaveBytes);
         }
     }
 
-    private static final int MAX_CAPTURE_IMAGE = 30;
+    private static final int MAX_CAPTURE_IMAGE = 40;
     private void deleteOldCapturedImages() {
         File pathFile = new File(path);
         File[] files = pathFile.listFiles();
@@ -370,7 +378,7 @@ public class Preview{
             List<File> fileList = new ArrayList<>(Arrays.asList(files));
             Collections.sort(fileList);
 
-            for(int i=0; i<MAX_CAPTURE_IMAGE; i++){
+            for(int i=0; i<(files.length-MAX_CAPTURE_IMAGE); i++){
                 Log.d(TAG, "delete:" + fileList.get(i).getName());
                 fileList.get(i).delete();
             }
@@ -472,6 +480,7 @@ public class Preview{
     private long lastFaceDetectRequest = 0;
     private Long lastChanged = null;
     private Boolean lastFaceDetected = null;
+    private boolean powerRequested = false;
 
     private static final int MAX_FILTER_COUNT = 5;
     private int filterCount = 0;
@@ -485,8 +494,12 @@ public class Preview{
                 Log.d("face", "face detected: " + detected);
                 lastChanged = System.currentTimeMillis();
                 lastFaceDetected = detected;
+                powerRequested = false;
                 if(detected){
                     capture();
+                }
+                if(listener!=null){
+                    listener.onFaceDetectedFiltered(detected);
                 }
                 filterCount = 0;
             }
@@ -495,20 +508,24 @@ public class Preview{
             filterCount = 0;
         }
         if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.SECONDS.toMillis(0)
-            && lastFaceDetected && !powerManager.isInteractive()) {
+            && lastFaceDetected && !powerManager.isInteractive() && !powerRequested) {
                 Log.d("power", "wake up");
-                PowerManagerHelper.wakeUp(powerManager, SystemClock.uptimeMillis());
+                powerRequested = true;
+                //PowerManagerHelper.wakeUp(powerManager, SystemClock.uptimeMillis());
+
         }
 
         if(lastChanged!=null && (System.currentTimeMillis() - lastChanged)> TimeUnit.MINUTES.toMillis(1)
-            && !lastFaceDetected && powerManager.isInteractive()) {
+            && !lastFaceDetected && powerManager.isInteractive() && !powerRequested) {
                 Log.d("power", "goto sleep");
-                PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
+                powerRequested = true;
+                //PowerManagerHelper.goToSleep(powerManager, SystemClock.uptimeMillis());
         }
     }
     public interface OnEventListener {
         void onImageCaptured(File file);
         void onFaceDetected(List<FirebaseVisionFace> faces, int width, int height);
+        void onFaceDetectedFiltered(boolean detected);
     }
     OnEventListener listener;
     public void setOnImageCapturedListener(OnEventListener listener){
